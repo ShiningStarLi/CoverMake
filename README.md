@@ -17,65 +17,75 @@
 
 ## 📑 目录 · Contents
 
-| 中文 | English |
-| --- | --- |
-| [✨ 功能特性](#-功能特性) | [✨ Features](#-features) |
-| [🚀 快速开始](#-快速开始) | [🚀 Quick Start](#-quick-start) |
-| [🔗 在线部署](#-在线部署-github-pages) | [🔗 Deploy (GitHub Pages)](#-deploy-github-pages) |
-| [🖥️ 技术栈](#-技术栈) | [🖥️ Tech Stack](#-tech-stack) |
-| [📁 项目结构](#-项目结构) | [📁 Project Structure](#-project-structure) |
-| [🎯 使用小贴士](#-使用小贴士) | [🎯 Tips](#-tips) |
-| [🤝 贡献指南](#-贡献指南) | [🤝 Contributing](#-contributing) |
-| [📜 开源协议](#-开源协议) | [📜 License](#-license) |
+**中文**
+
+- [✨ 功能特性](#-功能特性)
+- [🚀 快速开始](#-快速开始)
+- [🔗 在线部署 GitHub Pages](#-在线部署-github-pages)
+- [🖥️ 技术栈](#-技术栈)
+- [📁 项目结构](#-项目结构)
+- [🎯 使用小贴士](#-使用小贴士)
+- [🤝 贡献指南](#-贡献指南)
+- [📜 开源协议](#-开源协议)
+
+**English**
+
+- [✨ Features](#-features)
+- [🚀 Quick Start](#-quick-start)
+- [🔗 Deploy (GitHub Pages)](#-deploy-github-pages)
+- [🖥️ Tech Stack](#-tech-stack)
+- [📁 Project Structure](#-project-structure)
+- [🎯 Tips](#-tips)
+- [🤝 Contributing](#-contributing)
+- [📜 License](#-license)
 
 ---
 
-## ✨ 功能特性
+## ✨ 功能特性 · Features
 
 ### 🖼️ 背景系统 · Background
-| 类型 Type | 说明 Description |
-| --- | --- |
-| **渐变背景 Gradient** | 线性 / 径向 / 圆锥三种渐变，最多 3 个颜色节点，角度自由调节 · Linear / Radial / Conic, up to 3 color stops with adjustable angle |
-| **纯色背景 Solid** | 一键取色，简洁干净 · One-click color picker |
-| **自定义图片 Image** | 上传本机图片，支持**模糊度**与**暗化**调节，自动裁剪填充 · Upload image with **blur** & **darken**, auto-crop & cover |
-| **网格渐变 Mesh** | 4 节点配色 + 复杂度调节，生成流动的网格质感 · 4-node colors + complexity, fluid mesh texture |
-| **噪点纹理 Noise** | 可调强度、颗粒大小与颜色，电影质感颗粒 · Adjustable intensity, grain & color, cinematic grain |
-| **随机配色 Random Color** | 任意背景一键随机，配色自动保持对比度 · One-click random palette with automatic contrast |
+
+- **渐变背景 Gradient** — 线性 / 径向 / 圆锥三种渐变，最多 3 个颜色节点，角度自由调节 · Linear / Radial / Conic, up to 3 color stops with adjustable angle
+- **纯色背景 Solid** — 一键取色，简洁干净 · One-click color picker
+- **自定义图片 Image** — 上传本机图片，支持**模糊度**与**暗化**调节，自动裁剪填充 · Upload image with **blur** & **darken**, auto-crop & cover
+- **网格渐变 Mesh** — 4 节点配色 + 复杂度调节，生成流动的网格质感 · 4-node colors + complexity, fluid mesh texture
+- **噪点纹理 Noise** — 可调强度、颗粒大小与颜色，电影质感颗粒 · Adjustable intensity, grain & color, cinematic grain
+- **随机配色 Random Color** — 任意背景一键随机，配色自动保持对比度 · One-click random palette with automatic contrast
 
 ### 🔤 文字系统 · Text
+
 - **主标题**独立控制：字体、字号、颜色，画布拖拽定位 · Independent **main title** control: font, size, color, drag on canvas
 - **多组自定义文字**：任意添加多组文字，单独设置字体 / 字号 / 颜色 / 透明度 / 加粗 / 位置 · Unlimited **custom texts** with per-item font / size / color / opacity / bold / position
 - **30+ 款精选字体**：得意黑、霞鹜文楷、站酷系列、阿里妈妈系列、抖音美好体等中文字体，及多种英文艺术字体 · **30+ curated fonts** including Smiley Sans, LXGW WenKai, ZCOOL series, Alimama series, plus English display fonts
 
 ### 🎯 图标系统 · Icons
+
 - 支持**粘贴 SVG 代码**或**上传 `.svg` 文件** · Paste SVG code or upload `.svg` file
 - 容器样式：**纯色** / **毛玻璃**（真实背景模糊 + 高光 + 反光边框） · Container: **solid** / **glassmorphism** (real background blur + highlight + reflective border)
 - 容器形状：圆角矩形 / 圆形 / 菱形 · Shapes: rounded rectangle / circle / diamond
 - 支持阴影、边框、透明度等细节，画布拖拽定位 · Shadow, border, opacity; drag on canvas
 
 ### 📐 平台预设 · Presets
-内置 6 种常用尺寸 · 6 built-in presets:
 
-| 预设 Preset | 尺寸 Size |
-| --- | --- |
-| 博客封面 Blog | 1200 × 675 (16:9) |
-| 公众号 WeChat | 900 × 500 |
-| 小红书 Xiaohongshu | 800 × 800 (1:1) |
-| 视频封面 Video | 1280 × 720 |
-| PPT 封面 PPT | 1920 × 1080 |
-| 抖音 / 竖版 Douyin / Portrait | 1080 × 1920 (9:16) |
+内置 6 种常用尺寸，切换即用 · 6 built-in presets:
+
+- **博客封面 Blog** — 1200 × 675 (16:9)
+- **公众号 WeChat** — 900 × 500
+- **小红书 Xiaohongshu** — 800 × 800 (1:1)
+- **视频封面 Video** — 1280 × 720
+- **PPT 封面 PPT** — 1920 × 1080
+- **抖音 / 竖版 Douyin / Portrait** — 1080 × 1920 (9:16)
 
 ### ⚙️ 其他能力 · More
-- 🌍 **多语言**：中 / 英一键切换 · Bilingual UI (Chinese / English)
-- 💾 **配置管理**：所有设置导出为 JSON，随时导入复用 · Export all settings as JSON, re-import anytime
-- ⬇️ **多格式导出**：PNG（无损，推荐）/ JPEG / WebP，质量可调 · Export PNG (lossless, recommended) / JPEG / WebP with adjustable quality
+
+- 🌍 **多语言** — 中 / 英一键切换 · Bilingual UI (Chinese / English)
+- 💾 **配置管理** — 所有设置导出为 JSON，随时导入复用 · Export all settings as JSON, re-import anytime
+- ⬇️ **多格式导出** — PNG（无损，推荐）/ JPEG / WebP，质量可调 · Export PNG (lossless, recommended) / JPEG / WebP with adjustable quality
 - ⌨️ **键盘快捷键 · Keyboard Shortcuts**
-  | 快捷键 Shortcut | 功能 Action |
-  | --- | --- |
-  | `Ctrl/Cmd + S` | 导出配置 · Export config |
-  | `Ctrl/Cmd + D` | 下载封面 · Download cover |
-  | `Ctrl/Cmd + R` | 重置所有设置 · Reset all |
-  | `Ctrl/Cmd + B` | 切换侧边栏（移动端） · Toggle sidebar (mobile) |
+  - `Ctrl/Cmd + S` — 导出配置 · Export config
+  - `Ctrl/Cmd + D` — 下载封面 · Download cover
+  - `Ctrl/Cmd + R` — 重置所有设置 · Reset all
+  - `Ctrl/Cmd + B` — 切换侧边栏（移动端） · Toggle sidebar (mobile)
 
 ---
 
@@ -99,7 +109,7 @@ python3 -m http.server 8080
 
 ---
 
-## 🔗 在线部署 (GitHub Pages)
+## 🔗 在线部署 · Deploy (GitHub Pages)
 
 访问地址 · Live URL：**[https://cover.eucalyptus.cc](https://cover.eucalyptus.cc)**
 
@@ -114,13 +124,11 @@ python3 -m http.server 8080
 
 ## 🖥️ 技术栈 · Tech Stack
 
-| 层 Layer | 技术 Tech |
-| --- | --- |
-| 结构 Structure | HTML5 |
-| 样式 Style | CSS3（响应式、动画、毛玻璃效果 · responsive, animations, glassmorphism) |
-| 逻辑 Logic | Vanilla JavaScript |
-| 绘图 Drawing | HTML5 Canvas |
-| 依赖 Dependencies | **0 个第三方依赖 · 0 third-party** |
+- **结构 Structure** — HTML5
+- **样式 Style** — CSS3（响应式、动画、毛玻璃效果 · responsive, animations, glassmorphism)
+- **逻辑 Logic** — Vanilla JavaScript
+- **绘图 Drawing** — HTML5 Canvas
+- **依赖 Dependencies** — **0 个第三方依赖 · 0 third-party**
 
 纯前端实现，无框架与构建工具，轻量、加载快、易维护 · Pure frontend, no framework or build tool — lightweight & fast.
 
@@ -141,9 +149,9 @@ cover-make/
 
 ## 🎯 使用小贴士 · Tips
 
-- 💡 **添加图标**：访问 [yesicon.app](https://yesicon.app) 搜图标 → 复制 SVG 代码 → 粘贴到"图标"面板，或直接上传 `.svg` · **Add icons**: visit [yesicon.app](https://yesicon.app) → copy SVG → paste, or upload `.svg`
-- 🎨 **配色技巧**：用"随机配色"快速生成和谐色板，再微调 · **Colors**: use "Random Color" for a harmonious palette, then fine-tune
-- 💾 **复用设计**：用"导出配置"保存为 JSON，同类封面直接"导入配置"复用 · **Reuse**: "Export Config" to save as JSON, re-import for similar covers
+- 💡 **添加图标** — 访问 [yesicon.app](https://yesicon.app) 搜图标 → 复制 SVG 代码 → 粘贴到"图标"面板，或直接上传 `.svg` · **Add icons**: visit [yesicon.app](https://yesicon.app) → copy SVG → paste, or upload `.svg`
+- 🎨 **配色技巧** — 用"随机配色"快速生成和谐色板，再微调 · **Colors**: use "Random Color" for a harmonious palette, then fine-tune
+- 💾 **复用设计** — 用"导出配置"保存为 JSON，同类封面直接"导入配置"复用 · **Reuse**: "Export Config" to save as JSON, re-import for similar covers
 
 ---
 
