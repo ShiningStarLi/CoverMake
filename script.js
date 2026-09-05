@@ -387,6 +387,67 @@ function createInlinePicker(initialHex, onChange, onClose) {
     return container;
 }
 
+// ===== Shared Helpers =====
+function escapeHtml(str) {
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+// Open (or replace) the inline color picker attached to a host element.
+function openInlinePicker(host, hex, onChange) {
+    if (activeInlinePicker) {
+        activeInlinePicker.remove();
+        activeInlinePicker = null;
+    }
+    const picker = createInlinePicker(hex, onChange);
+    host.appendChild(picker);
+    activeInlinePicker = picker;
+    return picker;
+}
+
+// Centralized font list used by the main-title select, the custom-text list and i18n.
+const FONTS = [
+    { value: "'Noto Sans SC', sans-serif", label: '思源黑体' },
+    { value: "'Noto Serif SC', serif", label: '思源宋体' },
+    { value: "'ZCOOL XiaoWei', serif", label: '站酷小薇体' },
+    { value: "'ZCOOL KuaiLe', cursive", label: '站酷快乐体' },
+    { value: "'Ma Shan Zheng', cursive", label: '马善政毛笔' },
+    { value: "'ZCOOL QingKe HuangYou', sans-serif", label: '站酷黄油体' },
+    { value: "'Long Cang', cursive", label: '龙藏体' },
+    { value: "'Zhi Mang Xing', cursive", label: '知芒星' },
+    { value: "'Liu Jian Mao Cao', cursive", label: '刘辩毛草' },
+    { value: "'LXGW WenKai', serif", label: '霞鹜文楷' },
+    { value: "'Smiley Sans', sans-serif", label: '得意黑' },
+    { value: "'ZCOOL KuHei', sans-serif", label: '站酷酷黑' },
+    { value: "'ZCOOL WenYi', serif", label: '站酷文艺' },
+    { value: "'ZCOOL CangErYuYang', cursive", label: '站酷仓耳渔阳' },
+    { value: "'ZCOOL Addict', sans-serif", label: '站酷 addicts' },
+    { value: "'ZCOOL GaoDuanHei', sans-serif", label: '站酷高端黑' },
+    { value: "'ZCOOL AiLe', cursive", label: '站酷爱乐体' },
+    { value: "'ZCOOL KuBi', sans-serif", label: '站酷酷毕体' },
+    { value: "'ZCOOL TeZhuan', sans-serif", label: '站酷特专体' },
+    { value: "'Alimama FangDaTi', sans-serif", label: '阿里妈妈方大体' },
+    { value: "'Alimama ShuHeiTi', sans-serif", label: '阿里妈妈数黑体' },
+    { value: "'Douyin Sans', sans-serif", label: '抖音美好体' },
+    { value: "'Douyin Good', sans-serif", label: '抖音好字体' },
+    { value: "'Black Ops One', cursive", label: 'Black Ops One' },
+    { value: "'Bungee', cursive", label: 'Bungee' },
+    { value: "'Permanent Marker', cursive", label: 'Permanent Marker' },
+    { value: "'Pacifico', cursive", label: 'Pacifico' },
+    { value: "'Caveat', cursive", label: 'Caveat 手写' },
+    { value: "'Righteous', sans-serif", label: 'Righteous' },
+    { value: 'Georgia, serif', label: 'Georgia' },
+    { value: 'Arial, sans-serif', label: 'Arial' }
+];
+
+function fontOptionsHTML(selected) {
+    return FONTS.map(f => '<option value="' + f.value + '"' + (f.value === selected ? ' selected' : '') + '>' + f.label + '</option>').join('');
+}
+
 // ===== Default State =====
 const DEFAULT_STATE = {
     width: 1200, height: 675,
@@ -414,6 +475,12 @@ let dragTarget = null, isDragging = false;
 let selectedFormat = 'png';
 let bgImageObj = null;
 let currentPanel = null;
+
+// High-DPI support: render the editing canvas at device resolution for crispness,
+// but keep exports at the logical design size (see renderExportCanvas).
+const dpr = Math.min(window.devicePixelRatio || 1, 2);
+let bgCanvas = null;
+let bgKey = null;
 
 const panelTitles = {
     basic: { zh: '基础设置', en: 'Basic Settings' },
@@ -465,8 +532,8 @@ function resetCanvasScale() {
 }
 
 function initCanvas() {
-    canvas.width = state.width;
-    canvas.height = state.height;
+    canvas.width = state.width * dpr;
+    canvas.height = state.height * dpr;
     resetCanvasScale();
     document.getElementById('sizeInfo').textContent = state.width + ' x ' + state.height;
     draw();
@@ -500,6 +567,7 @@ function hslToHex(hsl) {
 }
 
 function generateRandomColors() {
+    pushHistory();
     // 提取当前颜色的色相，用于确保新颜色有足够差异
     let prevHue = null;
     try {
@@ -576,6 +644,15 @@ function updateColorPreview(inputId, previewId, textId) {
 
 // ===== SVG Cache =====
 const svgImageCache = new Map(); // 存储 { svgCode: { img: Image, url: string } }
+const svgPreviewCache = new Map(); // 列表预览图 URL 缓存: svgCode -> ObjectURL
+
+function getSvgPreviewUrl(svgCode) {
+    if (!svgPreviewCache.has(svgCode)) {
+        const blob = new Blob([svgCode], { type: 'image/svg+xml' });
+        svgPreviewCache.set(svgCode, URL.createObjectURL(blob));
+    }
+    return svgPreviewCache.get(svgCode);
+}
 
 function getSvgImage(svgCode, iconColor = '#ffffff') {
     // 如果SVG包含currentColor，替换为指定颜色
@@ -603,6 +680,11 @@ function cleanupSvgCache(svgCode) {
         URL.revokeObjectURL(cached.url);
         svgImageCache.delete(svgCode);
     }
+    const pv = svgPreviewCache.get(svgCode);
+    if (pv) {
+        URL.revokeObjectURL(pv);
+        svgPreviewCache.delete(svgCode);
+    }
 }
 
 function cleanupAllSvgCache() {
@@ -610,6 +692,10 @@ function cleanupAllSvgCache() {
         URL.revokeObjectURL(cached.url);
     });
     svgImageCache.clear();
+    svgPreviewCache.forEach(url => {
+        URL.revokeObjectURL(url);
+    });
+    svgPreviewCache.clear();
 }
 
 // ===== Mesh Gradient =====
@@ -676,12 +762,25 @@ function drawNoise(ctx, w, h) {
     ctx.putImageData(imageData, 0, 0);
 }
 
-// ===== Main Draw Function =====
-function draw() {
-    ctx.clearRect(0, 0, state.width, state.height);
+// ===== Background Cache =====
+function frac(x) { return x - Math.floor(x); }
 
+function backgroundKey() {
+    const img = bgImageObj && bgImageObj.complete && bgImageObj.naturalWidth > 0 ? (bgImageObj.src || 'loaded') : (bgImageObj ? 'loading' : 'none');
+    return [
+        state.width, state.height,
+        state.bgType, state.gradientType, state.gradientAngle,
+        state.color1, state.color2, state.color3, state.gradientStops,
+        state.solidColor,
+        state.meshColor1, state.meshColor2, state.meshColor3, state.meshColor4, state.meshComplexity,
+        state.noiseIntensity, state.noiseScale, state.noiseColor, state.noiseBgColor,
+        state.bgBlur, state.bgDarken, img
+    ].join('|');
+}
+
+function renderBackground(g) {
     if (state.bgType === 'image' && bgImageObj) {
-        ctx.save();
+        g.save();
         const imgRatio = bgImageObj.width / bgImageObj.height;
         const canvasRatio = state.width / state.height;
         let sx, sy, sw, sh;
@@ -696,29 +795,29 @@ function draw() {
             sx = 0;
             sy = (bgImageObj.height - sh) / 2;
         }
-        ctx.drawImage(bgImageObj, sx, sy, sw, sh, 0, 0, state.width, state.height);
+        g.drawImage(bgImageObj, sx, sy, sw, sh, 0, 0, state.width, state.height);
         if (state.bgBlur > 0) {
-            ctx.filter = 'blur(' + state.bgBlur + 'px)';
-            ctx.globalCompositeOperation = 'copy';
-            ctx.drawImage(canvas, 0, 0);
-            ctx.filter = 'none';
-            ctx.globalCompositeOperation = 'source-over';
+            g.filter = 'blur(' + state.bgBlur + 'px)';
+            g.globalCompositeOperation = 'copy';
+            g.drawImage(g.canvas, 0, 0, state.width, state.height);
+            g.filter = 'none';
+            g.globalCompositeOperation = 'source-over';
         }
         if (state.bgDarken > 0) {
-            ctx.fillStyle = 'rgba(0,0,0,' + (state.bgDarken / 100) + ')';
-            ctx.fillRect(0, 0, state.width, state.height);
+            g.fillStyle = 'rgba(0,0,0,' + (state.bgDarken / 100) + ')';
+            g.fillRect(0, 0, state.width, state.height);
         }
-        ctx.restore();
+        g.restore();
     } else if (state.bgType === 'gradient') {
         let grad;
         if (state.gradientType === 'linear') {
             const a = state.gradientAngle * Math.PI / 180;
             const cx = state.width / 2, cy = state.height / 2, d = Math.sqrt(cx * cx + cy * cy);
-            grad = ctx.createLinearGradient(cx - Math.cos(a) * d, cy - Math.sin(a) * d, cx + Math.cos(a) * d, cy + Math.sin(a) * d);
+            grad = g.createLinearGradient(cx - Math.cos(a) * d, cy - Math.sin(a) * d, cx + Math.cos(a) * d, cy + Math.sin(a) * d);
         } else if (state.gradientType === 'radial') {
-            grad = ctx.createRadialGradient(state.width / 2, state.height / 2, 0, state.width / 2, state.height / 2, Math.max(state.width, state.height) / 1.5);
+            grad = g.createRadialGradient(state.width / 2, state.height / 2, 0, state.width / 2, state.height / 2, Math.max(state.width, state.height) / 1.5);
         } else {
-            grad = ctx.createConicGradient(state.gradientAngle * Math.PI / 180, state.width / 2, state.height / 2);
+            grad = g.createConicGradient(state.gradientAngle * Math.PI / 180, state.width / 2, state.height / 2);
         }
         grad.addColorStop(0, state.color1);
         if (state.gradientStops >= 3) {
@@ -727,50 +826,74 @@ function draw() {
         } else {
             grad.addColorStop(1, state.color2);
         }
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, state.width, state.height);
+        g.fillStyle = grad;
+        g.fillRect(0, 0, state.width, state.height);
     } else if (state.bgType === 'mesh') {
-        drawMesh(ctx, state.width, state.height);
+        drawMesh(g, state.width, state.height);
     } else if (state.bgType === 'noise') {
-        drawNoise(ctx, state.width, state.height);
+        drawNoise(g, state.width, state.height);
     } else {
-        ctx.fillStyle = state.solidColor;
-        ctx.fillRect(0, 0, state.width, state.height);
+        g.fillStyle = state.solidColor;
+        g.fillRect(0, 0, state.width, state.height);
     }
 
-    // Subtle noise overlay
-    ctx.fillStyle = 'rgba(255,255,255,0.012)';
+    // Deterministic subtle film grain (stable across frames)
+    g.fillStyle = 'rgba(255,255,255,0.012)';
     for (let i = 0; i < 80; i++) {
-        ctx.fillRect(Math.random() * state.width, Math.random() * state.height, Math.random() * 2, Math.random() * 2);
+        const rx = frac(Math.sin(i * 12.9898) * 43758.5453);
+        const ry = frac(Math.sin(i * 78.2330) * 43758.5453);
+        const rw = frac(Math.sin(i * 39.4250) * 43758.5453) * 2;
+        const rh = frac(Math.sin(i * 93.9898) * 43758.5453) * 2;
+        g.fillRect(rx * state.width, ry * state.height, Math.max(1, rw), Math.max(1, rh));
     }
+}
 
-    // Text
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.font = '900 ' + state.mainTitleSize + 'px ' + state.mainTitleFont;
-    ctx.fillStyle = state.mainTitleColor;
-    ctx.shadowColor = 'rgba(0,0,0,0.3)';
-    ctx.shadowBlur = 20;
-    ctx.shadowOffsetY = 4;
-    wrapTextCenter(ctx, state.mainTitle, state.mainTitleX * state.width, state.mainTitleY * state.height, state.width * 0.84, state.mainTitleSize * 1.4);
-    ctx.shadowColor = 'transparent';
+function getBgCanvas() {
+    if (!bgCanvas || bgCanvas.width !== canvas.width || bgCanvas.height !== canvas.height) {
+        bgCanvas = document.createElement('canvas');
+        bgCanvas.width = canvas.width;
+        bgCanvas.height = canvas.height;
+        bgKey = null;
+    }
+    if (bgKey !== backgroundKey()) {
+        const bctx = bgCanvas.getContext('2d');
+        bctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        renderBackground(bctx);
+        bgKey = backgroundKey();
+    }
+    return bgCanvas;
+}
 
-    // Custom texts
+// Draw text + SVG overlays on top of the (cached) background.
+// g is expected to already have a transform that maps logical canvas coords.
+function drawOverlays(g) {
+    const srcScale = g.canvas.width / state.width;
+
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.font = '900 ' + state.mainTitleSize + 'px ' + state.mainTitleFont;
+    g.fillStyle = state.mainTitleColor;
+    g.shadowColor = 'rgba(0,0,0,0.3)';
+    g.shadowBlur = 20;
+    g.shadowOffsetY = 4;
+    wrapTextCenter(g, state.mainTitle, state.mainTitleX * state.width, state.mainTitleY * state.height, state.width * 0.84, state.mainTitleSize * 1.4);
+    g.shadowColor = 'transparent';
+
     state.customTexts.forEach(ct => {
         const ctRgb = hexToRgb(ct.color);
-        ctx.font = (ct.bold ? '700 ' : '400 ') + ct.size + 'px ' + (ct.fontFamily || state.mainTitleFont);
-        ctx.fillStyle = 'rgba(' + ctRgb.r + ',' + ctRgb.g + ',' + ctRgb.b + ',' + ct.opacity + ')';
-        ctx.shadowColor = 'rgba(0,0,0,0.2)';
-        ctx.shadowBlur = 10;
-        ctx.shadowOffsetY = 2;
-        ctx.fillText(ct.text, ct.x * state.width, ct.y * state.height);
-        ctx.shadowColor = 'transparent';
+        g.font = (ct.bold ? '700 ' : '400 ') + ct.size + 'px ' + (ct.fontFamily || state.mainTitleFont);
+        g.fillStyle = 'rgba(' + ctRgb.r + ',' + ctRgb.g + ',' + ctRgb.b + ',' + ct.opacity + ')';
+        g.shadowColor = 'rgba(0,0,0,0.2)';
+        g.shadowBlur = 10;
+        g.shadowOffsetY = 2;
+        g.fillText(ct.text, ct.x * state.width, ct.y * state.height);
+        g.shadowColor = 'transparent';
     });
-    // Draw SVGs
+
     state.svgs.forEach(svgItem => {
         const img = getSvgImage(svgItem.svgCode, svgItem.iconColor || '#ffffff');
         if (img.complete && img.naturalWidth > 0) {
-            ctx.save();
+            g.save();
             const x = svgItem.x * state.width;
             const y = svgItem.y * state.height;
             const boxSize = svgItem.boxSize;
@@ -780,185 +903,138 @@ function draw() {
             const boxY = y - boxSize / 2;
             const showBox = svgItem.showBox !== false;
 
-            if (showBox) {
-                ctx.beginPath();
+            const boxPath = (cv) => {
+                cv.beginPath();
                 if (svgItem.boxShape === 'circle') {
-                    ctx.arc(x, y, boxSize / 2, 0, Math.PI * 2);
+                    cv.arc(x, y, boxSize / 2, 0, Math.PI * 2);
                 } else if (svgItem.boxShape === 'diamond') {
-                    ctx.moveTo(x, boxY);
-                    ctx.lineTo(x + boxSize / 2, y);
-                    ctx.lineTo(x, boxY + boxSize);
-                    ctx.lineTo(x - boxSize / 2, y);
-                    ctx.closePath();
+                    cv.moveTo(x, boxY);
+                    cv.lineTo(x + boxSize / 2, y);
+                    cv.lineTo(x, boxY + boxSize);
+                    cv.lineTo(x - boxSize / 2, y);
+                    cv.closePath();
                 } else {
-                    if (ctx.roundRect) {
-                        ctx.roundRect(boxX, boxY, boxSize, boxSize, radius);
+                    if (cv.roundRect) {
+                        cv.roundRect(boxX, boxY, boxSize, boxSize, radius);
                     } else {
-                        ctx.rect(boxX, boxY, boxSize, boxSize);
+                        cv.rect(boxX, boxY, boxSize, boxSize);
                     }
                 }
+            };
+
+            if (showBox) {
+                boxPath(g);
 
                 if (svgItem.boxShadow) {
-                    ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
-                    ctx.shadowBlur = 15;
-                    ctx.shadowOffsetX = 0;
-                    ctx.shadowOffsetY = 5;
+                    g.shadowColor = 'rgba(0, 0, 0, 0.3)';
+                    g.shadowBlur = 15;
+                    g.shadowOffsetX = 0;
+                    g.shadowOffsetY = 5;
                 }
 
                 if (svgItem.boxStyle === 'glass') {
-                    // 毛玻璃效果 - 真实的背景模糊
-                    
-                    // 1. 创建离屏canvas并截取背景
                     const offCanvas = document.createElement('canvas');
                     offCanvas.width = boxSize;
                     offCanvas.height = boxSize;
                     const offCtx = offCanvas.getContext('2d');
-                    
-                    // 从主canvas截取该区域的内容
-                    offCtx.drawImage(canvas, boxX, boxY, boxSize, boxSize, 0, 0, boxSize, boxSize);
-                    
-                    // 应用模糊滤镜
+                    offCtx.drawImage(g.canvas, boxX * srcScale, boxY * srcScale, boxSize * srcScale, boxSize * srcScale, 0, 0, boxSize, boxSize);
                     offCtx.filter = 'blur(8px)';
                     offCtx.globalCompositeOperation = 'copy';
                     offCtx.drawImage(offCanvas, 0, 0);
                     offCtx.filter = 'none';
                     offCtx.globalCompositeOperation = 'source-over';
-                    
-                    // 2. 将模糊后的背景绘制回主canvas，限制在框内
-                    ctx.save();
-                    ctx.beginPath();
-                    if (svgItem.boxShape === 'circle') {
-                        ctx.arc(x, y, boxSize / 2, 0, Math.PI * 2);
-                    } else if (svgItem.boxShape === 'diamond') {
-                        ctx.moveTo(x, boxY);
-                        ctx.lineTo(x + boxSize / 2, y);
-                        ctx.lineTo(x, boxY + boxSize);
-                        ctx.lineTo(x - boxSize / 2, y);
-                        ctx.closePath();
-                    } else {
-                        if (ctx.roundRect) {
-                            ctx.roundRect(boxX, boxY, boxSize, boxSize, radius);
-                        } else {
-                            ctx.rect(boxX, boxY, boxSize, boxSize);
-                        }
-                    }
-                    ctx.clip();
-                    ctx.globalAlpha = svgItem.boxOpacity;
-                    ctx.drawImage(offCanvas, boxX, boxY);
-                    ctx.restore();
-                    
-                    // 3. 添加白色叠加层，增强玻璃感
-                    ctx.save();
-                    ctx.beginPath();
-                    if (svgItem.boxShape === 'circle') {
-                        ctx.arc(x, y, boxSize / 2, 0, Math.PI * 2);
-                    } else if (svgItem.boxShape === 'diamond') {
-                        ctx.moveTo(x, boxY);
-                        ctx.lineTo(x + boxSize / 2, y);
-                        ctx.lineTo(x, boxY + boxSize);
-                        ctx.lineTo(x - boxSize / 2, y);
-                        ctx.closePath();
-                    } else {
-                        if (ctx.roundRect) {
-                            ctx.roundRect(boxX, boxY, boxSize, boxSize, radius);
-                        } else {
-                            ctx.rect(boxX, boxY, boxSize, boxSize);
-                        }
-                    }
-                    ctx.clip();
-                    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
-                    ctx.globalAlpha = svgItem.boxOpacity;
-                    ctx.fill();
-                    ctx.restore();
-                    
-                    // 4. 顶部高光（模拟光照反射）
-                    ctx.save();
-                    const highlightGrad = ctx.createLinearGradient(boxX, boxY, boxX, boxY + boxSize * 0.4);
+
+                    g.save();
+                    boxPath(g);
+                    g.clip();
+                    g.globalAlpha = svgItem.boxOpacity;
+                    g.drawImage(offCanvas, boxX, boxY);
+                    g.restore();
+
+                    g.save();
+                    boxPath(g);
+                    g.clip();
+                    g.fillStyle = 'rgba(255, 255, 255, 0.15)';
+                    g.globalAlpha = svgItem.boxOpacity;
+                    g.fill();
+                    g.restore();
+
+                    g.save();
+                    const highlightGrad = g.createLinearGradient(boxX, boxY, boxX, boxY + boxSize * 0.4);
                     highlightGrad.addColorStop(0, 'rgba(255, 255, 255, 0.5)');
                     highlightGrad.addColorStop(0.3, 'rgba(255, 255, 255, 0.15)');
                     highlightGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-                    
-                    ctx.beginPath();
-                    if (svgItem.boxShape === 'circle') {
-                        ctx.arc(x, y, boxSize / 2, 0, Math.PI * 2);
-                    } else if (svgItem.boxShape === 'diamond') {
-                        ctx.moveTo(x, boxY);
-                        ctx.lineTo(x + boxSize / 2, y);
-                        ctx.lineTo(x, boxY + boxSize);
-                        ctx.lineTo(x - boxSize / 2, y);
-                        ctx.closePath();
-                    } else {
-                        if (ctx.roundRect) {
-                            ctx.roundRect(boxX, boxY, boxSize, boxSize, radius);
-                        } else {
-                            ctx.rect(boxX, boxY, boxSize, boxSize);
-                        }
-                    }
-                    ctx.clip();
-                    ctx.fillStyle = highlightGrad;
-                    ctx.globalAlpha = svgItem.boxOpacity * 0.8;
-                    ctx.fill();
-                    ctx.restore();
-                    
-                    // 5. 白色边框（模拟玻璃边缘反光）
-                    ctx.save();
-                    ctx.globalAlpha = svgItem.boxOpacity * 0.5;
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
-                    ctx.lineWidth = 1.2;
-                    ctx.stroke();
-                    ctx.restore();
-                    
-                    // 6. 底部暗角（增加立体感）
-                    ctx.save();
-                    const shadowGrad = ctx.createLinearGradient(boxX, boxY + boxSize * 0.7, boxX, boxY + boxSize);
+                    boxPath(g);
+                    g.clip();
+                    g.fillStyle = highlightGrad;
+                    g.globalAlpha = svgItem.boxOpacity * 0.8;
+                    g.fill();
+                    g.restore();
+
+                    g.save();
+                    g.globalAlpha = svgItem.boxOpacity * 0.5;
+                    g.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+                    g.lineWidth = 1.2;
+                    g.stroke();
+                    g.restore();
+
+                    g.save();
+                    const shadowGrad = g.createLinearGradient(boxX, boxY + boxSize * 0.7, boxX, boxY + boxSize);
                     shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
                     shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0.2)');
-                    
-                    ctx.beginPath();
-                    if (svgItem.boxShape === 'circle') {
-                        ctx.arc(x, y, boxSize / 2, 0, Math.PI * 2);
-                    } else if (svgItem.boxShape === 'diamond') {
-                        ctx.moveTo(x, boxY);
-                        ctx.lineTo(x + boxSize / 2, y);
-                        ctx.lineTo(x, boxY + boxSize);
-                        ctx.lineTo(x - boxSize / 2, y);
-                        ctx.closePath();
-                    } else {
-                        if (ctx.roundRect) {
-                            ctx.roundRect(boxX, boxY, boxSize, boxSize, radius);
-                        } else {
-                            ctx.rect(boxX, boxY, boxSize, boxSize);
-                        }
-                    }
-                    ctx.clip();
-                    ctx.fillStyle = shadowGrad;
-                    ctx.globalAlpha = 1;
-                    ctx.fill();
-                    ctx.restore();
+                    boxPath(g);
+                    g.clip();
+                    g.fillStyle = shadowGrad;
+                    g.globalAlpha = 1;
+                    g.fill();
+                    g.restore();
                 } else {
-                    ctx.globalAlpha = svgItem.boxOpacity;
-                    ctx.fillStyle = svgItem.boxColor;
-                    ctx.fill();
+                    g.globalAlpha = svgItem.boxOpacity;
+                    g.fillStyle = svgItem.boxColor;
+                    g.fill();
                 }
 
-                ctx.shadowColor = 'transparent';
-                ctx.shadowBlur = 0;
+                g.shadowColor = 'transparent';
+                g.shadowBlur = 0;
 
-                // 非毛玻璃模式下显示自定义边框
                 if (svgItem.boxBorder && svgItem.boxStyle !== 'glass') {
-                    ctx.globalAlpha = 1;
-                    ctx.strokeStyle = svgItem.boxBorderColor || '#ffffff';
-                    ctx.lineWidth = svgItem.boxBorderWidth || 2;
-                    ctx.stroke();
+                    g.globalAlpha = 1;
+                    g.strokeStyle = svgItem.boxBorderColor || '#ffffff';
+                    g.lineWidth = svgItem.boxBorderWidth || 2;
+                    g.stroke();
                 }
             }
 
-            ctx.globalAlpha = svgItem.opacity;
-            ctx.drawImage(img, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize);
-            ctx.restore();
+            g.globalAlpha = svgItem.opacity;
+            g.drawImage(img, x - iconSize / 2, y - iconSize / 2, iconSize, iconSize);
+            g.restore();
         }
     });
+}
 
+// ===== Main Draw Function =====
+let drawQueued = false;
+function draw() {
+    if (drawQueued) return;
+    drawQueued = true;
+    requestAnimationFrame(() => {
+        drawQueued = false;
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, state.width, state.height);
+        ctx.drawImage(getBgCanvas(), 0, 0, state.width, state.height);
+        drawOverlays(ctx);
+    });
+}
+
+// Export always renders at the logical design size (never scaled by devicePixelRatio).
+function renderExportCanvas() {
+    const ec = document.createElement('canvas');
+    ec.width = state.width;
+    ec.height = state.height;
+    const ectx = ec.getContext('2d');
+    ectx.drawImage(getBgCanvas(), 0, 0, state.width, state.height);
+    drawOverlays(ectx);
+    return ec;
 }
 
 function wrapTextCenter(ctx, text, x, y, maxW, lineH) {
@@ -1107,7 +1183,6 @@ function updateCustomTextList() {
         list.innerHTML = '';
         return;
     }
-    let html = '';
     const lang = currentLang;
     const fontSizeLabel = lang === 'zh' ? '字号' : 'Font Size';
     const colorLabel = lang === 'zh' ? '颜色' : 'Color';
@@ -1117,86 +1192,61 @@ function updateCustomTextList() {
     const dragLabel = lang === 'zh' ? '(拖拽画布调整)' : '(Drag on canvas)';
     const normalText = lang === 'zh' ? '正常' : 'Normal';
     const boldText = lang === 'zh' ? '加粗' : 'Bold';
-    for (let idx = 0; idx < state.customTexts.length; idx++) {
-        const ct = state.customTexts[idx];
+    const html = state.customTexts.map((ct, idx) => {
         const ctFont = ct.fontFamily || "'Noto Sans SC', sans-serif";
-        html += '<div class="custom-text-item">' +
-            '<div class="custom-text-item-header">' +
-            '<span class="custom-text-item-label">' + (lang === 'zh' ? '文字 ' : 'Text ') + (idx + 1) + '</span>' +
-            '<button class="custom-text-remove" data-idx="' + idx + '">×</button>' +
-            '</div>' +
-            '<div class="form-group"><input type="text" class="custom-text-input" data-idx="' + idx + '" value="' + ct.text + '" placeholder="' + (lang === 'zh' ? '输入文字' : 'Enter text') + '"></div>' +
-            '<div class="form-group">' +
-            '<label>' + (lang === 'zh' ? '字体' : 'Font') + '</label>' +
-            '<select class="custom-text-font" data-idx="' + idx + '">' +
-            '<option value="\'Noto Sans SC\', sans-serif"' + (ctFont === "'Noto Sans SC', sans-serif" ? ' selected' : '') + '>思源黑体</option>' +
-            '<option value="\'Noto Serif SC\', serif"' + (ctFont === "'Noto Serif SC', serif" ? ' selected' : '') + '>思源宋体</option>' +
-            '<option value="\'ZCOOL XiaoWei\', serif"' + (ctFont === "'ZCOOL XiaoWei', serif" ? ' selected' : '') + '>站酷小薇体</option>' +
-            '<option value="\'ZCOOL KuaiLe\', cursive"' + (ctFont === "'ZCOOL KuaiLe', cursive" ? ' selected' : '') + '>站酷快乐体</option>' +
-            '<option value="\'Ma Shan Zheng\', cursive"' + (ctFont === "'Ma Shan Zheng', cursive" ? ' selected' : '') + '>马善政毛笔</option>' +
-            '<option value="\'ZCOOL QingKe HuangYou\', sans-serif"' + (ctFont === "'ZCOOL QingKe HuangYou', sans-serif" ? ' selected' : '') + '>站酷黄油体</option>' +
-            '<option value="\'Long Cang\', cursive"' + (ctFont === "'Long Cang', cursive" ? ' selected' : '') + '>龙藏体</option>' +
-            '<option value="\'Zhi Mang Xing\', cursive"' + (ctFont === "'Zhi Mang Xing', cursive" ? ' selected' : '') + '>知芒星</option>' +
-            '<option value="\'Liu Jian Mao Cao\', cursive"' + (ctFont === "'Liu Jian Mao Cao', cursive" ? ' selected' : '') + '>刘辩毛草</option>' +
-            '<option value="\'LXGW WenKai\', serif"' + (ctFont === "'LXGW WenKai', serif" ? ' selected' : '') + '>霞鹜文楷</option>' +
-            '<option value="\'Smiley Sans\', sans-serif"' + (ctFont === "'Smiley Sans', sans-serif" ? ' selected' : '') + '>得意黑</option>' +
-            '<option value="\'ZCOOL KuHei\', sans-serif"' + (ctFont === "'ZCOOL KuHei', sans-serif" ? ' selected' : '') + '>站酷酷黑</option>' +
-            '<option value="\'ZCOOL WenYi\', serif"' + (ctFont === "'ZCOOL WenYi', serif" ? ' selected' : '') + '>站酷文艺</option>' +
-            '<option value="\'ZCOOL CangErYuYang\', cursive"' + (ctFont === "'ZCOOL CangErYuYang', cursive" ? ' selected' : '') + '>站酷仓耳渔阳</option>' +
-            '<option value="\'ZCOOL Addict\', sans-serif"' + (ctFont === "'ZCOOL Addict', sans-serif" ? ' selected' : '') + '>站酷 addicts</option>' +
-            '<option value="\'ZCOOL GaoDuanHei\', sans-serif"' + (ctFont === "'ZCOOL GaoDuanHei', sans-serif" ? ' selected' : '') + '>站酷高端黑</option>' +
-            '<option value="\'ZCOOL AiLe\', cursive"' + (ctFont === "'ZCOOL AiLe', cursive" ? ' selected' : '') + '>站酷爱乐体</option>' +
-            '<option value="\'ZCOOL KuBi\', sans-serif"' + (ctFont === "'ZCOOL KuBi', sans-serif" ? ' selected' : '') + '>站酷酷毕体</option>' +
-            '<option value="\'ZCOOL TeZhuan\', sans-serif"' + (ctFont === "'ZCOOL TeZhuan', sans-serif" ? ' selected' : '') + '>站酷特专体</option>' +
-            '<option value="\'Alimama FangDaTi\', sans-serif"' + (ctFont === "'Alimama FangDaTi', sans-serif" ? ' selected' : '') + '>阿里妈妈方大体</option>' +
-            '<option value="\'Alimama ShuHeiTi\', sans-serif"' + (ctFont === "'Alimama ShuHeiTi', sans-serif" ? ' selected' : '') + '>阿里妈妈数黑体</option>' +
-            '<option value="\'Douyin Sans\', sans-serif"' + (ctFont === "'Douyin Sans', sans-serif" ? ' selected' : '') + '>抖音美好体</option>' +
-            '<option value="\'Douyin Good\', sans-serif"' + (ctFont === "'Douyin Good', sans-serif" ? ' selected' : '') + '>抖音好字体</option>' +
-            '<option value="\'Black Ops One\', cursive"' + (ctFont === "'Black Ops One', cursive" ? ' selected' : '') + '>Black Ops One</option>' +
-            '<option value="\'Bungee\', cursive"' + (ctFont === "'Bungee', cursive" ? ' selected' : '') + '>Bungee</option>' +
-            '<option value="\'Permanent Marker\', cursive"' + (ctFont === "'Permanent Marker', cursive" ? ' selected' : '') + '>Permanent Marker</option>' +
-            '<option value="\'Pacifico\', cursive"' + (ctFont === "'Pacifico', cursive" ? ' selected' : '') + '>Pacifico</option>' +
-            '<option value="\'Caveat\', cursive"' + (ctFont === "'Caveat', cursive" ? ' selected' : '') + '>Caveat 手写</option>' +
-            '<option value="\'Righteous\', sans-serif"' + (ctFont === "'Righteous', sans-serif" ? ' selected' : '') + '>Righteous</option>' +
-            '<option value="Georgia, serif"' + (ctFont === 'Georgia, serif' ? ' selected' : '') + '>Georgia</option>' +
-            '<option value="Arial, sans-serif"' + (ctFont === 'Arial, sans-serif' ? ' selected' : '') + '>Arial</option>' +
-            '</select>' +
-            '</div>' +
-            '<div class="two-col">' +
-            '<div class="form-group">' +
-            '<label>' + fontSizeLabel + '</label>' +
-            '<input type="range" class="custom-text-size" data-idx="' + idx + '" min="10" max="100" value="' + ct.size + '">' +
-            '<div class="range-value">' + ct.size + 'px</div>' +
-            '</div>' +
-            '<div class="form-group">' +
-            '<label>' + colorLabel + '</label>' +
-            '<div class="color-picker-wrapper custom-text-color-wrapper" data-idx="' + idx + '">' +
-            '<div class="color-preview-circle" style="background:' + ct.color + '"></div>' +
-            '<span class="color-value-text">' + ct.color.toUpperCase() + '</span>' +
-            '<input type="color" class="custom-text-color" data-idx="' + idx + '" value="' + ct.color + '">' +
-            '</div>' +
-            '</div>' +
-            '</div>' +
-            '<div class="two-col">' +
-            '<div class="form-group">' +
-            '<label>' + opacityLabel + '</label>' +
-            '<input type="range" class="custom-text-opacity" data-idx="' + idx + '" min="0" max="100" value="' + Math.round(ct.opacity * 100) + '">' +
-            '<div class="range-value">' + Math.round(ct.opacity * 100) + '%</div>' +
-            '</div>' +
-            '<div class="form-group">' +
-            '<label>' + boldLabel + '</label>' +
-            '<select class="custom-text-bold" data-idx="' + idx + '">' +
-            '<option value="0" ' + (!ct.bold ? 'selected' : '') + '>' + normalText + '</option>' +
-            '<option value="1" ' + (ct.bold ? 'selected' : '') + '>' + boldText + '</option>' +
-            '</select>' +
-            '</div>' +
-            '</div>' +
-            '<div class="form-group">' +
-            '<label>' + positionLabel + ' <span style="color:#555;font-size:11px;">' + dragLabel + '</span></label>' +
-            '<div class="pos-display" id="ctPos_' + idx + '">X: ' + Math.round(ct.x * state.width) + ' | Y: ' + Math.round(ct.y * state.height) + '</div>' +
-            '</div>' +
-            '</div>';
-    }
+        const labelText = (lang === 'zh' ? '文字 ' : 'Text ') + (idx + 1);
+        const placeholder = lang === 'zh' ? '输入文字' : 'Enter text';
+        const fontLabel = lang === 'zh' ? '字体' : 'Font';
+        return `
+            <div class="custom-text-item">
+                <div class="custom-text-item-header">
+                    <span class="custom-text-item-label">${labelText}</span>
+                    <button class="custom-text-remove" data-idx="${idx}" aria-label="删除">×</button>
+                </div>
+                <div class="form-group">
+                    <input type="text" class="custom-text-input" data-idx="${idx}" value="${escapeHtml(ct.text)}" placeholder="${placeholder}">
+                </div>
+                <div class="form-group">
+                    <label>${fontLabel}</label>
+                    <select class="custom-text-font" data-idx="${idx}">
+                        ${fontOptionsHTML(ctFont)}
+                    </select>
+                </div>
+                <div class="two-col">
+                    <div class="form-group">
+                        <label>${fontSizeLabel}</label>
+                        <input type="range" class="custom-text-size" data-idx="${idx}" min="10" max="100" value="${ct.size}">
+                        <div class="range-value">${ct.size}px</div>
+                    </div>
+                    <div class="form-group">
+                        <label>${colorLabel}</label>
+                        <div class="color-picker-wrapper custom-text-color-wrapper" data-idx="${idx}">
+                            <div class="color-preview-circle" style="background:${escapeHtml(ct.color)}"></div>
+                            <span class="color-value-text">${escapeHtml(ct.color.toUpperCase())}</span>
+                            <input type="color" class="custom-text-color" data-idx="${idx}" value="${escapeHtml(ct.color)}">
+                        </div>
+                    </div>
+                </div>
+                <div class="two-col">
+                    <div class="form-group">
+                        <label>${opacityLabel}</label>
+                        <input type="range" class="custom-text-opacity" data-idx="${idx}" min="0" max="100" value="${Math.round(ct.opacity * 100)}">
+                        <div class="range-value">${Math.round(ct.opacity * 100)}%</div>
+                    </div>
+                    <div class="form-group">
+                        <label>${boldLabel}</label>
+                        <select class="custom-text-bold" data-idx="${idx}">
+                            <option value="0" ${!ct.bold ? 'selected' : ''}>${normalText}</option>
+                            <option value="1" ${ct.bold ? 'selected' : ''}>${boldText}</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>${positionLabel} <span style="color:#555;font-size:11px;">${dragLabel}</span></label>
+                    <div class="pos-display" id="ctPos_${idx}">X: ${Math.round(ct.x * state.width)} | Y: ${Math.round(ct.y * state.height)}</div>
+                </div>
+            </div>`;
+    }).join('');
     list.innerHTML = html;
 }
 
@@ -1204,6 +1254,7 @@ document.getElementById('customTextList').addEventListener('click', function (e)
     const btn = e.target.closest('.custom-text-remove');
     if (btn) {
         const idx = parseInt(btn.dataset.idx);
+        pushHistory();
         state.customTexts.splice(idx, 1);
         updateCustomTextList();
         draw();
@@ -1217,12 +1268,7 @@ document.getElementById('customTextList').addEventListener('click', function (e)
         const input = wrapper.querySelector('.custom-text-color');
         if (!input) return;
 
-        if (activeInlinePicker) {
-            activeInlinePicker.remove();
-            activeInlinePicker = null;
-        }
-
-        const picker = createInlinePicker(input.value, (hex) => {
+        openInlinePicker(wrapper, input.value, (hex) => {
             input.value = hex;
             state.customTexts[idx].color = hex;
             const preview = wrapper.querySelector('.color-preview-circle');
@@ -1231,9 +1277,6 @@ document.getElementById('customTextList').addEventListener('click', function (e)
             if (text) text.textContent = hex.toUpperCase();
             draw();
         });
-
-        wrapper.appendChild(picker);
-        activeInlinePicker = picker;
     }
 });
 
@@ -1281,6 +1324,7 @@ document.getElementById('customTextList').addEventListener('input', function (e)
 
 document.getElementById('addCustomTextBtn').addEventListener('click', () => {
     const newFont = "'Noto Sans SC', sans-serif";
+    pushHistory();
     state.customTexts.push({
         id: ++customTextIdCounter,
         text: '自定义文字',
@@ -1308,7 +1352,6 @@ function updateSvgList() {
         list.innerHTML = '<div class="empty-state">' + i18n[currentLang].noIcons + '</div>';
         return;
     }
-    let html = '';
     const lang = currentLang;
     const boxSizeLabel = lang === 'zh' ? '框大小' : 'Box Size';
     const iconSizeLabel = lang === 'zh' ? '图标大小' : 'Icon Size';
@@ -1326,119 +1369,108 @@ function updateSvgList() {
     const borderColorLabel = lang === 'zh' ? '边框颜色' : 'Border Color';
     const borderWidthLabel = lang === 'zh' ? '边框宽度' : 'Border Width';
     const showBoxLabel = lang === 'zh' ? '显示背景' : 'Show Box';
-
-    for (let idx = 0; idx < state.svgs.length; idx++) {
-        const svg = state.svgs[idx];
-        const blob = new Blob([svg.svgCode], { type: 'image/svg+xml' });
-        const url = URL.createObjectURL(blob);
-        let previewBg;
-        if (svg.boxStyle === 'glass') {
-            previewBg = svg.boxColor + '80';
-        } else {
-            previewBg = svg.boxColor;
-        }
-        const previewBorder = svg.boxBorder ? svg.boxBorderColor : 'transparent';
-        html += '<div class="svg-item">' +
-            '<div class="svg-box-preview" style="background:' + previewBg + ';border-radius:' + (svg.boxShape === 'circle' ? '50%' : svg.radius + 'px') + ';border: ' + (svg.boxBorder ? svg.boxBorderWidth + 'px solid ' + svg.boxBorderColor : 'none') + ';">' +
-            '<img src="' + url + '" style="width:28px;height:28px;">' +
-            '</div>' +
-            '<div class="svg-info">' +
-            boxSizeLabel + ': ' + svg.boxSize + 'px · ' + iconSizeLabel + ': ' + svg.size + 'px<br>' +
-            boxStyleLabel + ': ' + svg.boxStyle + ' · ' + boxShapeLabel + ': ' + svg.boxShape + '<br>' +
-            posLabel + ': ' + Math.round(svg.x * state.width) + ', ' + Math.round(svg.y * state.height) +
-            '</div>' +
-            '<div class="svg-actions">' +
-            '<button class="btn btn-secondary btn-small svg-edit-btn" data-idx="' + idx + '">⚙</button>' +
-            '<button class="btn btn-danger btn-small svg-remove-btn" data-idx="' + idx + '">✕</button>' +
-            '</div>' +
-            '</div>' +
-            '<div class="card svg-edit-panel" id="svgEdit_' + idx + '" style="display:none;margin-top:4px;" data-idx="' + idx + '">' +
-            '<div class="svg-effect-row">' +
-            '<label class="svg-toggle"><input type="checkbox" data-idx="' + idx + '" data-prop="showBox" ' + (svg.showBox !== false ? 'checked' : '') + '><span>' + showBoxLabel + '</span></label>' +
-            '</div>' +
-            '<div class="svg-style-section">' +
-            '<div class="form-group"><label>' + boxStyleLabel + '</label>' +
-            '<div class="svg-style-grid">' +
-            '<label class="svg-style-option"><input type="radio" name="boxStyle_' + idx + '" value="solid" ' + (svg.boxStyle === 'solid' ? 'checked' : '') + ' data-idx="' + idx + '" data-prop="boxStyle"><span>纯色</span></label>' +
-            '<label class="svg-style-option"><input type="radio" name="boxStyle_' + idx + '" value="glass" ' + (svg.boxStyle === 'glass' ? 'checked' : '') + ' data-idx="' + idx + '" data-prop="boxStyle"><span>毛玻璃</span></label>' +
-            '</div></div>' +
-            '</div>' +
-            '<div class="two-col">' +
-            '<div class="form-group"><label>' + boxShapeLabel + '</label>' +
-            '<select class="svg-select" data-idx="' + idx + '" data-prop="boxShape">' +
-            '<option value="rounded" ' + (svg.boxShape === 'rounded' ? 'selected' : '') + '>圆角矩形</option>' +
-            '<option value="circle" ' + (svg.boxShape === 'circle' ? 'selected' : '') + '>圆形</option>' +
-            '<option value="diamond" ' + (svg.boxShape === 'diamond' ? 'selected' : '') + '>菱形</option>' +
-            '</select></div>' +
-            '<div class="form-group"><label>' + boxSizeLabel + '</label>' +
-            '<input type="range" class="svg-slider" data-idx="' + idx + '" data-prop="boxSize" min="40" max="300" value="' + svg.boxSize + '">' +
-            '<div class="range-value">' + svg.boxSize + 'px</div></div>' +
-            '</div>' +
-            '<div class="two-col">' +
-            '<div class="form-group"><label>' + radiusLabel + '</label>' +
-            '<input type="range" class="svg-slider" data-idx="' + idx + '" data-prop="radius" min="0" max="100" value="' + svg.radius + '">' +
-            '<div class="range-value">' + svg.radius + 'px</div></div>' +
-            '<div class="form-group"><label>' + iconSizeLabel + '</label>' +
-            '<input type="range" class="svg-slider" data-idx="' + idx + '" data-prop="size" min="20" max="200" value="' + svg.size + '">' +
-            '<div class="range-value">' + svg.size + 'px</div></div>' +
-            '</div>' +
-            '<div class="svg-solid-section"><div class="form-group"><label>' + boxColorLabel + '</label>' +
-            '<div class="color-picker-wrapper svg-color-wrapper" data-idx="' + idx + '" data-prop="boxColor">' +
-            '<div class="color-preview-circle" style="background:' + svg.boxColor + '"></div>' +
-            '<span class="color-value-text">' + svg.boxColor.toUpperCase() + '</span>' +
-            '<input type="color" class="svg-color-input" data-idx="' + idx + '" data-prop="boxColor" value="' + svg.boxColor + '">' +
-            '</div></div></div>' +
-            '<div class="form-group"><label>' + iconColorLabel + '</label>' +
-            '<div class="color-picker-wrapper svg-color-wrapper" data-idx="' + idx + '" data-prop="iconColor">' +
-            '<div class="color-preview-circle" style="background:' + (svg.iconColor || '#ffffff') + '"></div>' +
-            '<span class="color-value-text">' + (svg.iconColor || '#ffffff').toUpperCase() + '</span>' +
-            '<input type="color" class="svg-color-input" data-idx="' + idx + '" data-prop="iconColor" value="' + (svg.iconColor || '#ffffff') + '">' +
-            '</div></div>';
-
-        html += '<div class="two-col">' +
-            '<div class="form-group"><label>' + boxOpacityLabel + '</label>' +
-            '<input type="range" class="svg-slider" data-idx="' + idx + '" data-prop="boxOpacity" min="0" max="100" value="' + Math.round(svg.boxOpacity * 100) + '">' +
-            '<div class="range-value">' + Math.round(svg.boxOpacity * 100) + '%</div></div>' +
-            '<div class="form-group"><label>' + opacityLabel + '</label>' +
-            '<input type="range" class="svg-slider" data-idx="' + idx + '" data-prop="opacity" min="0" max="100" value="' + Math.round(svg.opacity * 100) + '">' +
-            '<div class="range-value">' + Math.round(svg.opacity * 100) + '%</div></div>' +
-            '</div>' +
-            '<div class="svg-effect-row">' +
-            '<label class="svg-toggle"><input type="checkbox" data-idx="' + idx + '" data-prop="boxShadow" ' + (svg.boxShadow ? 'checked' : '') + '><span>' + boxShadowLabel + '</span></label>' +
-            '<label class="svg-toggle"><input type="checkbox" data-idx="' + idx + '" data-prop="boxBorder" ' + (svg.boxBorder ? 'checked' : '') + '><span>' + boxBorderLabel + '</span></label>' +
-            '</div>';
-
-        if (svg.boxBorder) {
-            html += '<div class="two-col svg-border-section">' +
-                '<div class="form-group"><label>' + borderColorLabel + '</label>' +
-                '<div class="color-picker-wrapper svg-color-wrapper" data-idx="' + idx + '" data-prop="boxBorderColor">' +
-                '<div class="color-preview-circle" style="background:' + svg.boxBorderColor + '"></div>' +
-                '<span class="color-value-text">' + svg.boxBorderColor.toUpperCase() + '</span>' +
-                '<input type="color" class="svg-color-input" data-idx="' + idx + '" data-prop="boxBorderColor" value="' + svg.boxBorderColor + '">' +
-                '</div></div>' +
-                '<div class="form-group"><label>' + borderWidthLabel + '</label>' +
-                '<input type="range" class="svg-slider" data-idx="' + idx + '" data-prop="boxBorderWidth" min="1" max="10" value="' + svg.boxBorderWidth + '">' +
-                '<div class="range-value">' + svg.boxBorderWidth + 'px</div></div>' +
-                '</div>';
-        } else {
-            html += '<div class="two-col svg-border-section" style="display:none;">' +
-                '<div class="form-group"><label>' + borderColorLabel + '</label>' +
-                '<div class="color-picker-wrapper svg-color-wrapper" data-idx="' + idx + '" data-prop="boxBorderColor">' +
-                '<div class="color-preview-circle" style="background:' + svg.boxBorderColor + '"></div>' +
-                '<span class="color-value-text">' + svg.boxBorderColor.toUpperCase() + '</span>' +
-                '<input type="color" class="svg-color-input" data-idx="' + idx + '" data-prop="boxBorderColor" value="' + svg.boxBorderColor + '">' +
-                '</div></div>' +
-                '<div class="form-group"><label>' + borderWidthLabel + '</label>' +
-                '<input type="range" class="svg-slider" data-idx="' + idx + '" data-prop="boxBorderWidth" min="1" max="10" value="' + svg.boxBorderWidth + '">' +
-                '<div class="range-value">' + svg.boxBorderWidth + 'px</div></div>' +
-                '</div>';
-        }
-
-        html += '</div>';
-    }
+    const html = state.svgs.map((svg, idx) => {
+        const url = getSvgPreviewUrl(svg.svgCode);
+        const previewBg = svg.boxStyle === 'glass' ? svg.boxColor + '80' : svg.boxColor;
+        const borderRadius = svg.boxShape === 'circle' ? '50%' : svg.radius + 'px';
+        const previewBorder = svg.boxBorder ? (svg.boxBorderWidth + 'px solid ' + escapeHtml(svg.boxBorderColor)) : 'none';
+        const shapeVal = escapeHtml(svg.boxShape);
+        const styleVal = escapeHtml(svg.boxStyle);
+        return `
+            <div class="svg-item">
+                <div class="svg-box-preview" style="background:${escapeHtml(previewBg)};border-radius:${borderRadius};border:${previewBorder};">
+                    <img src="${url}" style="width:28px;height:28px;" alt="">
+                </div>
+                <div class="svg-info">
+                    ${boxSizeLabel}: ${svg.boxSize}px · ${iconSizeLabel}: ${svg.size}px<br>
+                    ${boxStyleLabel}: ${styleVal} · ${boxShapeLabel}: ${shapeVal}<br>
+                    ${posLabel}: ${Math.round(svg.x * state.width)}, ${Math.round(svg.y * state.height)}
+                </div>
+                <div class="svg-actions">
+                    <button class="btn btn-secondary btn-small svg-edit-btn" data-idx="${idx}" aria-label="编辑">⚙</button>
+                    <button class="btn btn-danger btn-small svg-remove-btn" data-idx="${idx}" aria-label="删除">✕</button>
+                </div>
+            </div>
+            <div class="card svg-edit-panel" id="svgEdit_${idx}" style="display:none;margin-top:4px;" data-idx="${idx}">
+                <div class="svg-effect-row">
+                    <label class="svg-toggle"><input type="checkbox" data-idx="${idx}" data-prop="showBox" ${svg.showBox !== false ? 'checked' : ''}><span>${showBoxLabel}</span></label>
+                </div>
+                <div class="svg-style-section">
+                    <div class="form-group"><label>${boxStyleLabel}</label>
+                        <div class="svg-style-grid">
+                            <label class="svg-style-option"><input type="radio" name="boxStyle_${idx}" value="solid" ${svg.boxStyle === 'solid' ? 'checked' : ''} data-idx="${idx}" data-prop="boxStyle"><span>纯色</span></label>
+                            <label class="svg-style-option"><input type="radio" name="boxStyle_${idx}" value="glass" ${svg.boxStyle === 'glass' ? 'checked' : ''} data-idx="${idx}" data-prop="boxStyle"><span>毛玻璃</span></label>
+                        </div>
+                    </div>
+                </div>
+                <div class="two-col">
+                    <div class="form-group"><label>${boxShapeLabel}</label>
+                        <select class="svg-select" data-idx="${idx}" data-prop="boxShape">
+                            <option value="rounded" ${svg.boxShape === 'rounded' ? 'selected' : ''}>圆角矩形</option>
+                            <option value="circle" ${svg.boxShape === 'circle' ? 'selected' : ''}>圆形</option>
+                            <option value="diamond" ${svg.boxShape === 'diamond' ? 'selected' : ''}>菱形</option>
+                        </select>
+                    </div>
+                    <div class="form-group"><label>${boxSizeLabel}</label>
+                        <input type="range" class="svg-slider" data-idx="${idx}" data-prop="boxSize" min="40" max="300" value="${svg.boxSize}">
+                        <div class="range-value">${svg.boxSize}px</div>
+                    </div>
+                </div>
+                <div class="two-col">
+                    <div class="form-group"><label>${radiusLabel}</label>
+                        <input type="range" class="svg-slider" data-idx="${idx}" data-prop="radius" min="0" max="100" value="${svg.radius}">
+                        <div class="range-value">${svg.radius}px</div>
+                    </div>
+                    <div class="form-group"><label>${iconSizeLabel}</label>
+                        <input type="range" class="svg-slider" data-idx="${idx}" data-prop="size" min="20" max="200" value="${svg.size}">
+                        <div class="range-value">${svg.size}px</div>
+                    </div>
+                </div>
+                <div class="svg-solid-section"><div class="form-group"><label>${boxColorLabel}</label>
+                    <div class="color-picker-wrapper svg-color-wrapper" data-idx="${idx}" data-prop="boxColor">
+                        <div class="color-preview-circle" style="background:${escapeHtml(svg.boxColor)}"></div>
+                        <span class="color-value-text">${escapeHtml(svg.boxColor.toUpperCase())}</span>
+                        <input type="color" class="svg-color-input" data-idx="${idx}" data-prop="boxColor" value="${escapeHtml(svg.boxColor)}">
+                    </div>
+                </div></div>
+                <div class="form-group"><label>${iconColorLabel}</label>
+                    <div class="color-picker-wrapper svg-color-wrapper" data-idx="${idx}" data-prop="iconColor">
+                        <div class="color-preview-circle" style="background:${escapeHtml(svg.iconColor || '#ffffff')}"></div>
+                        <span class="color-value-text">${escapeHtml((svg.iconColor || '#ffffff').toUpperCase())}</span>
+                        <input type="color" class="svg-color-input" data-idx="${idx}" data-prop="iconColor" value="${escapeHtml(svg.iconColor || '#ffffff')}">
+                    </div>
+                </div>
+                <div class="two-col">
+                    <div class="form-group"><label>${boxOpacityLabel}</label>
+                        <input type="range" class="svg-slider" data-idx="${idx}" data-prop="boxOpacity" min="0" max="100" value="${Math.round(svg.boxOpacity * 100)}">
+                        <div class="range-value">${Math.round(svg.boxOpacity * 100)}%</div>
+                    </div>
+                    <div class="form-group"><label>${opacityLabel}</label>
+                        <input type="range" class="svg-slider" data-idx="${idx}" data-prop="opacity" min="0" max="100" value="${Math.round(svg.opacity * 100)}">
+                        <div class="range-value">${Math.round(svg.opacity * 100)}%</div>
+                    </div>
+                </div>
+                <div class="svg-effect-row">
+                    <label class="svg-toggle"><input type="checkbox" data-idx="${idx}" data-prop="boxShadow" ${svg.boxShadow ? 'checked' : ''}><span>${boxShadowLabel}</span></label>
+                    <label class="svg-toggle"><input type="checkbox" data-idx="${idx}" data-prop="boxBorder" ${svg.boxBorder ? 'checked' : ''}><span>${boxBorderLabel}</span></label>
+                </div>
+                <div class="two-col svg-border-section"${svg.boxBorder ? '' : ' style="display:none;"'}>
+                    <div class="form-group"><label>${borderColorLabel}</label>
+                        <div class="color-picker-wrapper svg-color-wrapper" data-idx="${idx}" data-prop="boxBorderColor">
+                            <div class="color-preview-circle" style="background:${escapeHtml(svg.boxBorderColor)}"></div>
+                            <span class="color-value-text">${escapeHtml(svg.boxBorderColor.toUpperCase())}</span>
+                            <input type="color" class="svg-color-input" data-idx="${idx}" data-prop="boxBorderColor" value="${escapeHtml(svg.boxBorderColor)}">
+                        </div>
+                    </div>
+                    <div class="form-group"><label>${borderWidthLabel}</label>
+                        <input type="range" class="svg-slider" data-idx="${idx}" data-prop="boxBorderWidth" min="1" max="10" value="${svg.boxBorderWidth}">
+                        <div class="range-value">${svg.boxBorderWidth}px</div>
+                    </div>
+                </div>
+            </div>`;
+    }).join('');
     list.innerHTML = html;
 }
-
 document.getElementById('svgList').addEventListener('click', function (e) {
     const btn = e.target.closest('.svg-edit-btn');
     if (btn) {
@@ -1451,6 +1483,7 @@ document.getElementById('svgList').addEventListener('click', function (e) {
     if (removeBtn) {
         const idx = parseInt(removeBtn.dataset.idx);
         const svgCode = state.svgs[idx].svgCode;
+        pushHistory();
         cleanupSvgCache(svgCode);
         state.svgs.splice(idx, 1);
         updateSvgList();
@@ -1466,19 +1499,14 @@ document.getElementById('svgList').addEventListener('click', function (e) {
         const input = wrapper.querySelector('.svg-color-input');
         if (!input) return;
 
-        if (activeInlinePicker) {
-            activeInlinePicker.remove();
-            activeInlinePicker = null;
-        }
-
-        const picker = createInlinePicker(input.value, (hex) => {
+        openInlinePicker(wrapper, input.value, (hex) => {
             input.value = hex;
             state.svgs[idx][prop] = hex;
             const preview = wrapper.querySelector('.color-preview-circle');
             const text = wrapper.querySelector('.color-value-text');
             if (preview) preview.style.background = hex;
             if (text) text.textContent = hex.toUpperCase();
-            
+
             // 如果是图标颜色，等待新图片加载完成后再绘制
             if (prop === 'iconColor') {
                 const svgItem = state.svgs[idx];
@@ -1492,9 +1520,6 @@ document.getElementById('svgList').addEventListener('click', function (e) {
                 draw();
             }
         });
-
-        wrapper.appendChild(picker);
-        activeInlinePicker = picker;
     }
 });
 
@@ -1506,13 +1531,13 @@ document.getElementById('svgList').addEventListener('input', function (e) {
         let val = parseFloat(slider.value);
         if (prop === 'boxOpacity' || prop === 'opacity') val = val / 100;
         state.svgs[idx][prop] = val;
-        
+
         const valueDisplay = slider.parentElement.querySelector('.range-value');
         if (valueDisplay) {
             const suffix = prop.includes('Width') || prop === 'boxSize' || prop === 'radius' || prop === 'size' ? 'px' : '%';
             valueDisplay.textContent = (prop.includes('Opacity') || prop === 'opacity') ? Math.round(val * 100) + suffix : val + suffix;
         }
-        
+
         draw();
         return;
     }
@@ -1521,11 +1546,11 @@ document.getElementById('svgList').addEventListener('input', function (e) {
     if (radio && radio.dataset.prop === 'boxStyle') {
         const idx = parseInt(radio.dataset.idx);
         state.svgs[idx].boxStyle = radio.value;
-        
+
         const panel = document.getElementById('svgEdit_' + idx);
         const gradientSection = panel.querySelector('.svg-gradient-section');
         const solidSection = panel.querySelector('.svg-solid-section');
-        
+
         if (state.svgs[idx].boxStyle === 'gradient') {
             if (gradientSection) gradientSection.style.display = 'block';
             if (solidSection) solidSection.style.display = 'none';
@@ -1533,7 +1558,7 @@ document.getElementById('svgList').addEventListener('input', function (e) {
             if (gradientSection) gradientSection.style.display = 'none';
             if (solidSection) solidSection.style.display = 'block';
         }
-        
+
         draw();
         return;
     }
@@ -1543,7 +1568,7 @@ document.getElementById('svgList').addEventListener('input', function (e) {
         const idx = parseInt(checkbox.dataset.idx);
         const prop = checkbox.dataset.prop;
         state.svgs[idx][prop] = checkbox.checked;
-        
+
         const panel = document.getElementById('svgEdit_' + idx);
         if (prop === 'boxBorder') {
             const borderSection = panel.querySelector('.svg-border-section');
@@ -1551,7 +1576,7 @@ document.getElementById('svgList').addEventListener('input', function (e) {
                 borderSection.style.display = checkbox.checked ? 'flex' : 'none';
             }
         }
-        
+
         draw();
         return;
     }
@@ -1564,7 +1589,7 @@ document.getElementById('svgList').addEventListener('input', function (e) {
         draw();
         return;
     }
-    
+
     // 处理颜色输入变化
     const colorInput = e.target.closest('.svg-color-input');
     if (colorInput) {
@@ -1572,7 +1597,7 @@ document.getElementById('svgList').addEventListener('input', function (e) {
         const prop = colorInput.dataset.prop;
         const hex = colorInput.value;
         state.svgs[idx][prop] = hex;
-        
+
         // 获取新颜色的图片，等待加载完成后再绘制
         const svgItem = state.svgs[idx];
         const img = getSvgImage(svgItem.svgCode, svgItem.iconColor || '#ffffff');
@@ -1612,6 +1637,7 @@ function addSvgFromCode(code) {
         iconColor: lastSvg ? lastSvg.iconColor : '#ffffff' // 图标颜色
     };
     
+    pushHistory();
     state.svgs.push({
         id: ++svgIdCounter,
         svgCode: code,
@@ -1661,40 +1687,37 @@ function formatFileSize(bytes) {
 async function calculateFileSizes() {
     const quality = state.downloadQuality;
     const formats = ['png', 'jpeg', 'webp'];
-    
+
     for (const fmt of formats) {
         const sizeEl = document.querySelector('.file-size[data-size="' + fmt + '"]');
         if (!sizeEl) continue;
         sizeEl.textContent = '计算中...';
     }
-    
+
+    // Render once at the logical design size, then encode per format.
+    const exportCanvas = renderExportCanvas();
+
     for (const fmt of formats) {
         const sizeEl = document.querySelector('.file-size[data-size="' + fmt + '"]');
         if (!sizeEl) continue;
-        
+
         try {
             let blob;
-            switch (fmt) {
-                case 'jpeg': {
-                    const tempCanvas = document.createElement('canvas');
-                    tempCanvas.width = canvas.width;
-                    tempCanvas.height = canvas.height;
-                    const tempCtx = tempCanvas.getContext('2d');
-                    tempCtx.fillStyle = '#ffffff';
-                    tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-                    tempCtx.drawImage(canvas, 0, 0);
-                    blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/jpeg', quality));
-                    break;
-                }
-                case 'webp':
-                    blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/webp', quality));
-                    break;
-                case 'png':
-                default:
-                    blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
-                    break;
+            if (fmt === 'jpeg') {
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = exportCanvas.width;
+                tempCanvas.height = exportCanvas.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.fillStyle = '#ffffff';
+                tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+                tempCtx.drawImage(exportCanvas, 0, 0);
+                blob = await new Promise(resolve => tempCanvas.toBlob(resolve, 'image/jpeg', quality));
+            } else if (fmt === 'webp') {
+                blob = await new Promise(resolve => exportCanvas.toBlob(resolve, 'image/webp', quality));
+            } else {
+                blob = await new Promise(resolve => exportCanvas.toBlob(resolve, 'image/png'));
             }
-            
+
             if (blob) {
                 sizeEl.textContent = '约 ' + formatFileSize(blob.size);
             } else {
@@ -1758,46 +1781,45 @@ window.confirmDownload = function () {
     closeDownloadModal();
     document.getElementById('loading').classList.add('show');
 
-    setTimeout(() => {
-        let dataUrl, ext;
-        const quality = state.downloadQuality;
+    // Let the browser paint the loading state before the (synchronous) export.
+    requestAnimationFrame(() => {
+        setTimeout(() => {
+            let dataUrl, ext;
+            const quality = state.downloadQuality;
+            const exportCanvas = renderExportCanvas();
 
-        switch (selectedFormat) {
-            case 'jpeg':
+            if (selectedFormat === 'jpeg') {
                 const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = canvas.width;
-                tempCanvas.height = canvas.height;
+                tempCanvas.width = exportCanvas.width;
+                tempCanvas.height = exportCanvas.height;
                 const tempCtx = tempCanvas.getContext('2d');
                 tempCtx.fillStyle = '#ffffff';
                 tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
-                tempCtx.drawImage(canvas, 0, 0);
+                tempCtx.drawImage(exportCanvas, 0, 0);
                 dataUrl = tempCanvas.toDataURL('image/jpeg', quality);
                 ext = 'jpg';
-                break;
-            case 'webp':
-                dataUrl = canvas.toDataURL('image/webp', quality);
+            } else if (selectedFormat === 'webp') {
+                dataUrl = exportCanvas.toDataURL('image/webp', quality);
                 ext = 'webp';
-                break;
-            case 'png':
-            default:
-                dataUrl = canvas.toDataURL('image/png');
+            } else {
+                dataUrl = exportCanvas.toDataURL('image/png');
                 ext = 'png';
-                break;
-        }
+            }
 
-        const link = document.createElement('a');
-        link.download = 'cover-' + Date.now() + '.' + ext;
-        link.href = dataUrl;
-        link.click();
-        document.getElementById('loading').classList.remove('show');
-        showToast('success', i18n[currentLang].downloadSuccess, '');
-    }, 500);
+            const link = document.createElement('a');
+            link.download = 'cover-' + Date.now() + '.' + ext;
+            link.href = dataUrl;
+            link.click();
+            document.getElementById('loading').classList.remove('show');
+            showToast('success', i18n[currentLang].downloadSuccess, '');
+        }, 0);
+    });
 };
 
 document.getElementById('exportBtn').addEventListener('click', () => {
     const exportState = JSON.parse(JSON.stringify(state));
     if (bgImageObj) {
-        exportState.bgImageData = canvas.toDataURL('image/jpeg', 0.5);
+        exportState.bgImageData = renderExportCanvas().toDataURL('image/jpeg', 0.5);
     }
     const config = JSON.stringify(exportState, null, 2);
     const blob = new Blob([config], { type: 'application/json' });
@@ -1826,6 +1848,7 @@ document.getElementById('importFileInput').addEventListener('change', (e) => {
                 throw new Error('Invalid config');
             }
 
+            pushHistory();
             state = JSON.parse(JSON.stringify(DEFAULT_STATE));
 
             Object.keys(config).forEach(key => {
@@ -2004,7 +2027,7 @@ document.addEventListener('click', function(e) {
         const stateKey = stateKeyMap[targetId];
         if (!stateKey) return;
 
-        const picker = createInlinePicker(input.value, (hex) => {
+        openInlinePicker(wrapper, input.value, (hex) => {
             input.value = hex;
             const preview = document.getElementById(previewId);
             const text = document.getElementById(textId);
@@ -2013,9 +2036,6 @@ document.addEventListener('click', function(e) {
             state[stateKey] = hex;
             draw();
         });
-
-        wrapper.appendChild(picker);
-        activeInlinePicker = picker;
     }
 });
 
@@ -2027,6 +2047,7 @@ document.getElementById('resetNavBtn').addEventListener('click', async () => {
     );
     if (!confirmed) return;
 
+    pushHistory();
     state = JSON.parse(JSON.stringify(DEFAULT_STATE));
     bgImageObj = null;
     svgIdCounter = 0;
@@ -2114,6 +2135,7 @@ document.querySelectorAll('.platform-item').forEach(el => {
     el.addEventListener('click', () => {
         document.querySelectorAll('.platform-item').forEach(p => p.classList.remove('active'));
         el.classList.add('active');
+        pushHistory();
         state.width = parseInt(el.dataset.w);
         state.height = parseInt(el.dataset.h);
         initCanvas();
@@ -2151,18 +2173,12 @@ document.getElementById('meshComplexity').addEventListener('input', e => {
     if (bar) {
         bar.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (activeInlinePicker) {
-                activeInlinePicker.remove();
-                activeInlinePicker = null;
-            }
-            const picker = createInlinePicker(state[id], (hex) => {
+            openInlinePicker(bar.parentElement, state[id], (hex) => {
                 state[id] = hex;
                 bar.style.background = hex;
                 bar.setAttribute('data-color', hex);
                 draw();
             });
-            bar.parentElement.appendChild(picker);
-            activeInlinePicker = picker;
         });
     }
 });
@@ -2192,17 +2208,11 @@ function attachColorBarPicker(barId, stateKey) {
     if (!bar) return;
     bar.addEventListener('click', (e) => {
         e.stopPropagation();
-        if (activeInlinePicker) {
-            activeInlinePicker.remove();
-            activeInlinePicker = null;
-        }
-        const picker = createInlinePicker(state[stateKey], (hex) => {
+        openInlinePicker(bar.parentElement, state[stateKey], (hex) => {
             state[stateKey] = hex;
             updateColorBars();
             draw();
         });
-        bar.parentElement.appendChild(picker);
-        activeInlinePicker = picker;
     });
 }
 
@@ -2214,25 +2224,39 @@ attachColorBarPicker('colorBar3', 'color3');
 function initShortcuts() {
     document.addEventListener('keydown', (e) => {
         if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-        
+
+        // Ctrl/Cmd + Z: Undo
+        if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') {
+            e.preventDefault();
+            undoAction();
+            return;
+        }
+
+        // Ctrl/Cmd + Y or Ctrl/Cmd + Shift + Z: Redo
+        if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) {
+            e.preventDefault();
+            redoAction();
+            return;
+        }
+
         // Ctrl/Cmd + S: Export Config
         if ((e.ctrlKey || e.metaKey) && e.key === 's') {
             e.preventDefault();
             document.getElementById('exportBtn')?.click();
         }
-        
+
         // Ctrl/Cmd + D: Download
         if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
             e.preventDefault();
             document.getElementById('downloadNavBtn')?.click();
         }
-        
+
         // Ctrl/Cmd + R: Reset
         if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
             e.preventDefault();
             document.getElementById('resetNavBtn')?.click();
         }
-        
+
         // Ctrl/Cmd + B: Toggle Sidebar (Mobile)
         if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
             e.preventDefault();
@@ -2243,7 +2267,47 @@ function initShortcuts() {
 
 
 
+// ===== Undo / Redo History =====
+const undoStack = [];
+const redoStack = [];
+const HISTORY_LIMIT = 50;
+function pushHistory() {
+    undoStack.push(JSON.stringify(state));
+    if (undoStack.length > HISTORY_LIMIT) undoStack.shift();
+    redoStack.length = 0;
+}
+function restoreHistoryState(snap) {
+    state = JSON.parse(snap);
+    if (state.bgImage) {
+        bgImageObj = new Image();
+        bgImageObj.onload = () => { updateBgImageUI(); initCanvas(); };
+        bgImageObj.src = state.bgImage;
+    } else {
+        bgImageObj = null;
+    }
+    syncAllUI();
+    updateBgImageUI();
+    if (!state.bgImage) initCanvas();
+}
+function undoAction() {
+    if (undoStack.length === 0) {
+        showToast('info', '撤销', '没有可撤销的操作');
+        return;
+    }
+    redoStack.push(JSON.stringify(state));
+    restoreHistoryState(undoStack.pop());
+}
+function redoAction() {
+    if (redoStack.length === 0) {
+        showToast('info', '重做', '没有可重做的操作');
+        return;
+    }
+    undoStack.push(JSON.stringify(state));
+    restoreHistoryState(redoStack.pop());
+}
+
 // ===== Init =====
+document.getElementById('mainTitleFontSelect').innerHTML = fontOptionsHTML(state.mainTitleFont);
 initShortcuts();
 syncAllUI();
 updateBgImageUI();

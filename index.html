@@ -132,13 +132,13 @@
                 </div>
                 <div class="nav-bottom">
                       <div class="nav-divider"></div>
-                    <div class="nav-item" id="resetNavBtn" data-tooltip="重置">
+                    <div class="nav-item" id="resetNavBtn" data-tooltip="重置" aria-label="重置">
                         <svg viewBox="0 0 24 24">
                             <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8M3 3v5h5"/>
                         </svg>
                         <span class="nav-tooltip" data-i18n="reset">重置</span>
                     </div>
-                    <div class="nav-item" id="downloadNavBtn" data-tooltip="下载封面">
+                    <div class="nav-item" id="downloadNavBtn" data-tooltip="下载封面" aria-label="下载封面">
                         <svg viewBox="0 0 24 24">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
                         </svg>
@@ -157,7 +157,7 @@
             <div class="config-panel collapsed" id="configPanel">
                 <div class="config-panel-header">
                     <div class="config-panel-title" id="panelTitle">基础设置</div>
-                    <button class="config-panel-close" id="panelCloseBtn">
+                    <button class="config-panel-close" id="panelCloseBtn" aria-label="关闭面板">
                         <svg viewBox="0 0 24 24">
                             <path d="M18 6L6 18M6 6l12 12" />
                         </svg>
@@ -373,39 +373,7 @@
                                     placeholder="输入主标题"></div>
                             <div class="form-group">
                                 <label data-i18n="fontFamily">字体</label>
-                                <select id="mainTitleFontSelect" class="font-select">
-                                    <option value="'Noto Sans SC', sans-serif">思源黑体</option>
-                                    <option value="'Noto Serif SC', serif">思源宋体</option>
-                                    <option value="'ZCOOL XiaoWei', serif">站酷小薇体</option>
-                                    <option value="'ZCOOL KuaiLe', cursive">站酷快乐体</option>
-                                    <option value="'Ma Shan Zheng', cursive">马善政毛笔</option>
-                                    <option value="'ZCOOL QingKe HuangYou', sans-serif">站酷黄油体</option>
-                                    <option value="'Long Cang', cursive">龙藏体</option>
-                                    <option value="'Zhi Mang Xing', cursive">知芒星</option>
-                                    <option value="'Liu Jian Mao Cao', cursive">刘辩毛草</option>
-                                    <option value="'LXGW WenKai', serif">霞鹜文楷</option>
-                                    <option value="'Smiley Sans', sans-serif">得意黑</option>
-                                    <option value="'ZCOOL KuHei', sans-serif">站酷酷黑</option>
-                                    <option value="'ZCOOL WenYi', serif">站酷文艺</option>
-                                    <option value="'ZCOOL CangErYuYang', cursive">站酷仓耳渔阳</option>
-                                    <option value="'ZCOOL Addict', sans-serif">站酷 addicts</option>
-                                    <option value="'ZCOOL GaoDuanHei', sans-serif">站酷高端黑</option>
-                                    <option value="'ZCOOL AiLe', cursive">站酷爱乐体</option>
-                                    <option value="'ZCOOL KuBi', sans-serif">站酷酷毕体</option>
-                                    <option value="'ZCOOL TeZhuan', sans-serif">站酷特专体</option>
-                                    <option value="'Alimama FangDaTi', sans-serif">阿里妈妈方大体</option>
-                                    <option value="'Alimama ShuHeiTi', sans-serif">阿里妈妈数黑体</option>
-                                    <option value="'Douyin Sans', sans-serif">抖音美好体</option>
-                                    <option value="'Douyin Good', sans-serif">抖音好字体</option>
-                                    <option value="'Black Ops One', cursive">Black Ops One</option>
-                                    <option value="'Bungee', cursive">Bungee</option>
-                                    <option value="'Permanent Marker', cursive">Permanent Marker</option>
-                                    <option value="'Pacifico', cursive">Pacifico</option>
-                                    <option value="'Caveat', cursive">Caveat 手写</option>
-                                    <option value="'Righteous', sans-serif">Righteous</option>
-                                    <option value="Georgia, serif">Georgia</option>
-                                    <option value="Arial, sans-serif">Arial</option>
-                                </select>
+                                <select id="mainTitleFontSelect" class="font-select"></select>
                             </div>
                             <div class="two-col">
                                 <div class="form-group">
