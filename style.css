@@ -2376,20 +2376,19 @@ body.mobile-landing-active .editor-page {
     display: inline-block;
 }
 
-/* Fixed footer shown over the editor: a small right-aligned block in the
-   bottom-right corner. Starts after the 64px sidebar so it never covers the
-   bottom nav buttons, and stays clear of the editor canvas. */
-.footer-fixed {
-    position: fixed;
-    left: auto;
-    right: 18px;
+/* Footer pinned to the bottom of the preview area (below the canvas),
+   right-aligned. Lives inside .preview-area (which is position:relative) so it
+   never overlaps the sidebar, the config panel or the canvas itself. */
+.footer-preview {
+    position: absolute;
+    left: 0;
+    right: 16px;
     bottom: 8px;
-    z-index: 60;
     text-align: right;
     pointer-events: auto;
 }
 
-.footer-fixed .footer-line {
+.footer-preview .footer-line {
     justify-content: flex-end;
 }
 
@@ -2403,9 +2402,4 @@ body.mobile-landing-active .editor-page {
 
 .footer-mobile a {
     color: #777;
-}
-
-/* Hide the fixed editor footer while the mobile landing page is shown (it has its own footer) */
-body.mobile-landing-active .footer-fixed {
-    display: none;
 }
