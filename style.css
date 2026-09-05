@@ -2358,9 +2358,11 @@ body.mobile-landing-active .editor-page {
 }
 
 .icp-footer .beian-icon {
-    width: 13px;
-    height: 13px;
+    height: 15px;
+    width: auto;
     flex-shrink: 0;
+    vertical-align: -3px;
+    display: inline-block;
 }
 
 /* Fixed footer shown over the editor */
@@ -2387,8 +2389,10 @@ body.mobile-landing-active .editor-page {
 }
 
 .icp-footer-mobile .beian-icon {
-    width: 12px;
-    height: 12px;
+    height: 13px;
+    width: auto;
+    vertical-align: -3px;
+    display: inline-block;
 }
 
 .icp-footer-mobile a {
