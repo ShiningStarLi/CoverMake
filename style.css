@@ -2330,14 +2330,14 @@ body.mobile-landing-active .editor-page {
     }
 }
 
-/* ===== ICP Footer ===== */
-.icp-footer {
-    font-size: 12px;
+/* ===== Site Footer (copyright · GitHub · ICP · 公安备案) ===== */
+.site-footer {
+    font-size: 11px;
     color: #777;
-    line-height: 1.7;
+    line-height: 1.6;
 }
 
-.icp-footer a {
+.site-footer a {
     color: #888;
     text-decoration: none;
     display: inline-flex;
@@ -2346,60 +2346,62 @@ body.mobile-landing-active .editor-page {
     transition: color 0.2s;
 }
 
-.icp-footer a:hover {
+.site-footer a:hover {
     color: #a5b4fc;
     text-decoration: underline;
 }
 
-.icp-footer .icp-sep {
-    margin: 0 8px;
+.footer-line {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 4px 10px;
+}
+
+.footer-text {
+    color: #777;
+}
+
+.footer-sep {
     color: #555;
     user-select: none;
 }
 
-.icp-footer .beian-icon {
-    height: 15px;
+.beian-icon {
+    height: 14px;
     width: auto;
     flex-shrink: 0;
     vertical-align: -3px;
     display: inline-block;
 }
 
-/* Fixed footer shown over the editor */
-.icp-footer-fixed {
+/* Fixed footer shown over the editor: a subtle bottom fade, not a heavy bar */
+.footer-fixed {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 60;
     text-align: center;
-    padding: 6px 12px;
-    background: rgba(15, 15, 15, 0.78);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    border-top: 1px solid rgba(255, 255, 255, 0.05);
+    padding: 8px 12px 10px;
+    background: linear-gradient(to top, rgba(0, 0, 0, 0.72), rgba(0, 0, 0, 0));
+    pointer-events: auto;
 }
 
 /* Mobile landing footer */
-.icp-footer-mobile {
+.footer-mobile {
     text-align: center;
-    margin-top: -6px;
-    font-size: 11px;
-    color: #555;
-}
-
-.icp-footer-mobile .beian-icon {
-    height: 13px;
-    width: auto;
-    vertical-align: -3px;
-    display: inline-block;
-}
-
-.icp-footer-mobile a {
+    font-size: 10px;
     color: #666;
+    margin-top: -4px;
+}
+
+.footer-mobile a {
+    color: #777;
 }
 
 /* Hide the fixed editor footer while the mobile landing page is shown (it has its own footer) */
-body.mobile-landing-active .icp-footer-fixed {
+body.mobile-landing-active .footer-fixed {
     display: none;
 }
