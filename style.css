@@ -2376,10 +2376,11 @@ body.mobile-landing-active .editor-page {
     display: inline-block;
 }
 
-/* Fixed footer shown over the editor: a subtle bottom fade, not a heavy bar */
+/* Fixed footer shown over the editor: a subtle bottom fade, not a heavy bar.
+   Starts after the 64px sidebar so it never covers the bottom nav buttons. */
 .footer-fixed {
     position: fixed;
-    left: 0;
+    left: 64px;
     right: 0;
     bottom: 0;
     z-index: 60;
